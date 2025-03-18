@@ -1,0 +1,122 @@
+/* General Styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #eef2f3;
+    margin: 0;
+    padding: 0;
+}
+
+/* Main Container */
+.container {
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+/* Headings */
+h1 {
+    color: #0056b3;
+    text-align: center;
+    font-size: 28px;
+    margin-bottom: 20px;
+}
+
+h2 {
+    color: #333;
+    font-size: 22px;
+    margin-bottom: 15px;
+}
+
+/* Input Section */
+.input-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.input-section label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #333;
+}
+
+.input-section input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.input-section button {
+    padding: 12px 20px;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s ease-in-out;
+}
+
+.input-section button:hover {
+    background: #0056b3;
+}
+
+/* Sections Styling */
+.results-section,
+.visualization-section,
+.previous-results-section,
+.overall-performance-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+/* Results Styling */
+.results-section p {
+    font-size: 18px;
+    color: #333;
+    margin: 5px 0;
+}
+
+/* Previous Results */
+.result-item {
+    background: #f8f9fa;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+/* FLRU Visualization Section */
+.visualization-section img {
+    width: 100%;
+    max-height: 400px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Graph Styling */
+#graph {
+    margin-top: 15px;
+    min-height: 400px;
+    width: 100%;
+    position: relative;
+    background-color: #ffffff;
+}
+
+.visualization-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    min-height: 500px;
+}

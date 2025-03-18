@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Replacement Simulator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="text-center mb-4">Page Replacement Algorithm Simulator</h1>
+
+                <!-- Input Section -->
+                <div class="input-section bg-white p-4 rounded mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="page_frames" class="form-label">Number of Page Frames:</label>
+                                <input type="number" id="page_frames" class="form-control" min="1" placeholder="Enter page frames">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="reference_string" class="form-label">Reference String (comma-separated):</label>
+                                <input type="text" id="reference_string" class="form-control" placeholder="e.g., 7,0,1,2,0,3,0,4,2,3">
+                            </div>
+                        </div>
+                        <div class="col-12 text-center">
+                            <button onclick="runSimulation()" class="btn btn-primary px-4" id="simulateBtn">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                Run Simulation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div class="results-section mb-4">
+                    <h2 class="h4 mb-3">Current Results</h2>
+                    <div id="results" class="row g-3">
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">FIFO</h5>
+                                    <p class="card-text" id="fifo-result">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">LRU</h5>
+                                    <p class="card-text" id="lru-result">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Optimal</h5>
+                                    <p class="card-text" id="optimal-result">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">FLRU</h5>
+                                    <p class="card-text" id="flru-result">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visualization Section -->
+                <div class="visualization-section mb-4">
+                    <h2 class="h4 mb-3">Comparison Graph</h2>
+                    <div id="graph" class="bg-white p-3 rounded"></div>
+                </div>
+
+                <!-- FLRU Visualization Section -->
+                <div class="visualization-section mb-4">
+                    <h2 class="h4 mb-3">FLRU Visualization</h2>
+                    <div id="flru-visual" class="bg-white p-3 rounded text-center"></div>
+                </div>
+
+                <!-- Previous Results Section -->
+                <div class="previous-results-section mb-4">
+                    <h2 class="h4 mb-3">Previous Results</h2>
+                    <div id="previous-results" class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Run</th>
+                                    <th>Page Frames</th>
+                                    <th>Reference String</th>
+                                    <th>FIFO</th>
+                                    <th>LRU</th>
+                                    <th>Optimal</th>
+                                    <th>FLRU</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previous-results-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Overall Performance Section -->
+                <div class="overall-performance-section">
+                    <h2 class="h4 mb-3">Overall Performance</h2>
+                    <div id="overall-performance" class="row g-3">
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Total FIFO</h5>
+                                    <p class="card-text" id="total-fifo">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Total LRU</h5>
+                                    <p class="card-text" id="total-lru">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Total Optimal</h5>
+                                    <p class="card-text" id="total-optimal">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card h-100">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">Total FLRU</h5>
+                                    <p class="card-text" id="total-flru">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Add global variable to track Plotly loading
+        let plotlyLoaded = false;
+        
+        // Check if Plotly is loaded
+        window.onload = function() {
+            if (typeof Plotly !== 'undefined') {
+                console.log('Plotly loaded successfully');
+                plotlyLoaded = true;
+            } else {
+                console.error('Plotly failed to load');
+            }
+        };
+
+        function validateInput() {
+            const pageFrames = document.getElementById("page_frames").value;
+            const referenceString = document.getElementById("reference_string").value;
+            
+            if (!pageFrames || pageFrames < 1) {
+                alert("Please enter a valid number of page frames (must be positive)");
+                return false;
+            }
+            
+            if (!referenceString) {
+                alert("Please enter a reference string");
+                return false;
+            }
+            
+            const refArray = referenceString.split(',').map(num => parseInt(num.trim()));
+            if (refArray.some(isNaN)) {
+                alert("Please enter valid numbers in the reference string");
+                return false;
+            }
+            
+            return true;
+        }
+
+        function showLoading() {
+            const btn = document.getElementById("simulateBtn");
+            const spinner = btn.querySelector(".spinner-border");
+            btn.disabled = true;
+            spinner.classList.remove("d-none");
+        }
+
+        function hideLoading() {
+            const btn = document.getElementById("simulateBtn");
+            const spinner = btn.querySelector(".spinner-border");
+            btn.disabled = false;
+            spinner.classList.add("d-none");
+        }
+
+        function plotGraph(data) {
+            console.log('Plotting graph with data:', data);
+            
+            if (!plotlyLoaded) {
+                console.error('Plotly is not loaded yet');
+                document.getElementById('graph').innerHTML = 'Error: Plotting library not loaded';
+                return;
+            }
+
+            const graphContainer = document.getElementById('graph');
+            if (!graphContainer) {
+                console.error('Graph container not found');
+                return;
+            }
+
+            console.log('Graph container dimensions:', {
+                width: graphContainer.offsetWidth,
+                height: graphContainer.offsetHeight
+            });
+
+            const algorithms = ["FIFO", "LRU", "Optimal", "FLRU"];
+            const pageFaults = [data.fifo_faults, data.lru_faults, data.optimal_faults, data.flru_faults];
+
+            console.log('Page faults data:', pageFaults);
+
+            // Clear any existing plots
+            try {
+                Plotly.purge("graph");
+                console.log('Previous graph cleared');
+            } catch (err) {
+                console.warn('No previous graph to clear:', err);
+            }
+
+            const trace = [{
+                x: algorithms,
+                y: pageFaults,
+                type: 'bar',
+                text: pageFaults.map(String),
+                textposition: 'auto',
+                hoverinfo: 'y',
+                marker: {
+                    color: ['#0d6efd', '#198754', '#dc3545', '#6f42c1'],
+                    line: {
+                        color: '#000000',
+                        width: 1
+                    }
+                }
+            }];
+
+            const layout = {
+                title: {
+                    text: 'Comparison of Page Replacement Algorithms',
+                    font: {
+                        size: 20,
+                        color: '#333'
+                    }
+                },
+                xaxis: {
+                    title: 'Algorithms',
+                    titlefont: {
+                        size: 16,
+                        color: '#333'
+                    },
+                    tickfont: {
+                        size: 14
+                    }
+                },
+                yaxis: {
+                    title: 'Number of Page Faults',
+                    titlefont: {
+                        size: 16,
+                        color: '#333'
+                    },
+                    tickfont: {
+                        size: 14
+                    },
+                    rangemode: 'tozero'
+                },
+                bargap: 0.3,
+                bargroupgap: 0.1,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: {
+                    l: 80,
+                    r: 40,
+                    t: 60,
+                    b: 60
+                },
+                height: 400, // Explicit height
+                width: graphContainer.offsetWidth * 0.95 // 95% of container width
+            };
+
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                displaylogo: false,
+                modeBarButtonsToRemove: ['lasso2d', 'select2d']
+            };
+
+            try {
+                console.log('Attempting to plot graph...');
+                Plotly.newPlot('graph', trace, layout, config)
+                    .then(() => {
+                        console.log('Graph plotted successfully');
+                    })
+                    .catch(err => {
+                        console.error('Error plotting graph:', err);
+                        graphContainer.innerHTML = 'Error plotting graph. Please try again.';
+                    });
+            } catch (err) {
+                console.error('Error in graph plotting setup:', err);
+                graphContainer.innerHTML = 'Error setting up graph. Please try again.';
+            }
+        }
+
+        function runSimulation() {
+            if (!validateInput()) return;
+
+            showLoading();
+            const pageFrames = document.getElementById("page_frames").value;
+            const referenceString = document.getElementById("reference_string").value;
+
+            console.log('Running simulation with:', {
+                pageFrames,
+                referenceString
+            });
+
+            fetch("/simulate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    page_frames: pageFrames,
+                    reference_string: referenceString,
+                }),
+            })
+            .then((response) => response.json())
+            .then((data) => {
+                if (data.error) {
+                    console.error('Simulation error:', data.error);
+                    alert(data.error);
+                    return;
+                }
+
+                console.log('Simulation results:', data);
+
+                // Display current results
+                document.getElementById("fifo-result").textContent = data.fifo_faults;
+                document.getElementById("lru-result").textContent = data.lru_faults;
+                document.getElementById("optimal-result").textContent = data.optimal_faults;
+                document.getElementById("flru-result").textContent = data.flru_faults;
+
+                // Display previous results
+                const tbody = document.getElementById("previous-results-body");
+                tbody.innerHTML = "";
+                data.previous_results.forEach((result, index) => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${result.page_frames}</td>
+                        <td>${result.reference_string.join(",")}</td>
+                        <td>${result.fifo_faults}</td>
+                        <td>${result.lru_faults}</td>
+                        <td>${result.optimal_faults}</td>
+                        <td>${result.flru_faults}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                // Display overall performance
+                document.getElementById("total-fifo").textContent = data.total_fifo;
+                document.getElementById("total-lru").textContent = data.total_lru;
+                document.getElementById("total-optimal").textContent = data.total_optimal;
+                document.getElementById("total-flru").textContent = data.total_flru;
+
+                // Plot the graph using the separate function
+                plotGraph(data);
+
+                // Display FLRU visualization
+                document.getElementById("flru-visual").innerHTML = `
+                    <img src="data:image/png;base64,${data.flru_visualization}" 
+                         class="img-fluid" alt="FLRU Visualization">
+                `;
+            })
+            .catch((error) => {
+                console.error('Simulation request error:', error);
+                alert("An error occurred while running the simulation");
+            })
+            .finally(() => {
+                hideLoading();
+            });
+        }
+    </script>
+</body>
+</html>
