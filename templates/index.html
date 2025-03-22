@@ -4,260 +4,182 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Page Replacement Algorithm Simulator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Page Replacement Algorithm Simulator</h1>
-        
-        <!-- Input Section -->
-        <div class="input-section">
-            <h2>Input Parameters</h2>
-            <form id="simulationForm">
-                <div class="mb-3">
-                    <label for="pageFrames">Number of Page Frames:</label>
-                    <input type="number" id="pageFrames" name="pageFrames" min="1" max="10" required>
-                </div>
-                <div class="mb-3">
-                    <label for="referenceString">Reference String (comma-separated):</label>
-                    <input type="text" id="referenceString" name="referenceString" required>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                    Run Simulation
-                </button>
-            </form>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-cpu"></i> Page Replacement Simulator
+            </a>
         </div>
+    </nav>
 
-        <!-- Results Section -->
-        <div class="results-section">
-            <h2>Current Results</h2>
-            <div class="row">
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">FIFO</h5>
-                            <p class="card-text" id="fifoResult">-</p>
-                        </div>
+    <div class="container mt-4">
+        <div class="row">
+            <!-- Input Section -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-sliders"></i> Simulation Parameters
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="simulationForm">
+                            <div class="mb-3">
+                                <label for="pageFrames" class="form-label">
+                                    <i class="bi bi-grid"></i> Number of Page Frames
+                                </label>
+                                <input type="number" class="form-control" id="pageFrames" 
+                                       min="1" max="100" required>
+                                <small class="text-muted">Enter a value between 1 and 100</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="referenceString" class="form-label">
+                                    <i class="bi bi-list-ol"></i> Reference String
+                                </label>
+                                <input type="text" class="form-control" id="referenceString" 
+                                       placeholder="Enter comma-separated numbers" required>
+                                <small class="text-muted">Example: 7,0,1,2,0,3,0,4,2,3</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-play-fill"></i> Run Simulation
+                            </button>
+                        </form>
                     </div>
                 </div>
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">LRU</h5>
-                            <p class="card-text" id="lruResult">-</p>
-                        </div>
+
+                <!-- System Resources Card -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-speedometer2"></i> System Resources
+                        </h5>
                     </div>
-                </div>
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Optimal</h5>
-                            <p class="card-text" id="optimalResult">-</p>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Memory Usage</label>
+                            <div class="progress">
+                                <div id="memory-usage" class="progress-bar" role="progressbar"></div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">FLRU</h5>
-                            <p class="card-text" id="flruResult">-</p>
+                        <div class="mb-3">
+                            <label class="form-label">CPU Usage</label>
+                            <div class="progress">
+                                <div id="cpu-usage" class="progress-bar bg-success" role="progressbar"></div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">LFU</h5>
-                            <p class="card-text" id="lfuResult">-</p>
+                        <div class="mb-2">
+                            <i class="bi bi-memory"></i>
+                            <small class="text-muted">RSS Memory: <span id="rss-memory">0 MB</span></small>
                         </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Clock</h5>
-                            <p class="card-text" id="clockResult">-</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6 col-lg-3 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">LRUF</h5>
-                            <p class="card-text" id="lrufResult">-</p>
+                        <div>
+                            <i class="bi bi-hdd"></i>
+                            <small class="text-muted">Virtual Memory: <span id="virtual-memory">0 MB</span></small>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Visualization Section -->
-        <div class="visualization-section">
-            <h2>Visualization</h2>
-            <div class="row">
-                <div class="col-md-8">
-                    <div id="graph"></div>
+            <!-- Loading Spinner -->
+            <div id="loading" class="col-md-8" style="display: none;">
+                <div class="d-flex justify-content-center align-items-center" style="height: 200px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Performance Metrics</h5>
-                            <div id="performanceMetrics">
-                                <p>Best Algorithm: <span id="bestAlgorithm">-</span></p>
-                                <p>Average Page Faults: <span id="avgFaults">-</span></p>
-                                <p>Standard Deviation: <span id="stdDev">-</span></p>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results" class="col-md-8" style="display: none;">
+                <!-- Performance Overview -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-graph-up"></i> Performance Overview
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><i class="bi bi-star-fill text-warning"></i> <strong>Best Algorithm:</strong> <span id="best-algorithm"></span></p>
+                                <p><i class="bi bi-calculator"></i> <strong>Average Faults:</strong> <span id="avg-faults"></span></p>
+                                <p><i class="bi bi-arrow-down-up"></i> <strong>Median Faults:</strong> <span id="median-faults"></span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><i class="bi bi-arrow-down"></i> <strong>Min Faults:</strong> <span id="min-faults"></span></p>
+                                <p><i class="bi bi-arrow-up"></i> <strong>Max Faults:</strong> <span id="max-faults"></span></p>
+                                <p><i class="bi bi-distribute-vertical"></i> <strong>Std Deviation:</strong> <span id="std-dev"></span></p>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Previous Results Section -->
-        <div class="previous-results-section">
-            <h2>Previous Results</h2>
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Timestamp</th>
-                            <th>Page Frames</th>
-                            <th>Reference String</th>
-                            <th>FIFO</th>
-                            <th>LRU</th>
-                            <th>Optimal</th>
-                            <th>FLRU</th>
-                            <th>LFU</th>
-                            <th>Clock</th>
-                            <th>LRUF</th>
-                        </tr>
-                    </thead>
-                    <tbody id="previousResults">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Overall Performance Section -->
-        <div class="overall-performance-section">
-            <h2>Overall Performance</h2>
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Algorithm Statistics</h5>
-                            <div id="algorithmStats">
-                                <p>Minimum Page Faults: <span id="minFaults">-</span></p>
-                                <p>Maximum Page Faults: <span id="maxFaults">-</span></p>
-                                <p>Median Page Faults: <span id="medianFaults">-</span></p>
-                            </div>
+                <!-- Results Table -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-table"></i> Algorithm Comparison
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <tbody id="results-table"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Memory Usage</h5>
-                            <div id="memoryStats">
-                                <p>RSS: <span id="rss">-</span></p>
-                                <p>VMS: <span id="vms">-</span></p>
-                                <p>Memory Usage: <span id="memoryUsage">-</span></p>
-                            </div>
-                        </div>
+
+                <!-- Performance Charts -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-bar-chart"></i> Performance Charts
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="visualization" class="mb-4"></div>
+                        <div id="miss-ratio-visualization" class="mb-4"></div>
+                    </div>
+                </div>
+
+                <!-- Algorithm Visualizations -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-diagram-3"></i> Memory State Visualizations
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="algorithm-visualizations" class="row"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script>
-        document.getElementById('simulationForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const spinner = document.querySelector('.spinner-border');
-            const submitButton = document.querySelector('button[type="submit"]');
-            
-            spinner.classList.remove('d-none');
-            submitButton.disabled = true;
+    <!-- Footer -->
+    <footer class="bg-light py-3 mt-5">
+        <div class="container text-center">
+            <small class="text-muted">
+                Page Replacement Algorithm Simulator &copy; 2024
+            </small>
+        </div>
+    </footer>
 
-            const pageFrames = document.getElementById('pageFrames').value;
-            const referenceString = document.getElementById('referenceString').value;
-
-            try {
-                const response = await fetch('/simulate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        page_frames: parseInt(pageFrames),
-                        reference_string: referenceString.split(',').map(num => parseInt(num.trim())).filter(num => !isNaN(num))
-                    })
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to run simulation');
-                }
-
-                const data = await response.json();
-
-                // Update results
-                document.getElementById('fifoResult').textContent = data.fifo_faults;
-                document.getElementById('lruResult').textContent = data.lru_faults;
-                document.getElementById('optimalResult').textContent = data.optimal_faults;
-                document.getElementById('flruResult').textContent = data.flru_faults;
-                document.getElementById('lfuResult').textContent = data.lfu_faults;
-                document.getElementById('clockResult').textContent = data.clock_faults;
-                document.getElementById('lrufResult').textContent = data.lruf_faults;
-
-                // Update performance metrics
-                document.getElementById('bestAlgorithm').textContent = data.best_algorithm;
-                document.getElementById('avgFaults').textContent = data.avg_faults.toFixed(2);
-                document.getElementById('stdDev').textContent = data.std_dev.toFixed(2);
-
-                // Update algorithm statistics
-                document.getElementById('minFaults').textContent = data.min_faults;
-                document.getElementById('maxFaults').textContent = data.max_faults;
-                document.getElementById('medianFaults').textContent = data.median_faults;
-
-                // Update memory statistics
-                document.getElementById('rss').textContent = data.memory_stats.rss;
-                document.getElementById('vms').textContent = data.memory_stats.vms;
-                document.getElementById('memoryUsage').textContent = data.memory_stats.usage + '%';
-
-                // Update visualization
-                Plotly.newPlot('graph', data.visualization.data, data.visualization.layout);
-
-                // Add to previous results
-                const tbody = document.getElementById('previousResults');
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${new Date().toLocaleString()}</td>
-                    <td>${pageFrames}</td>
-                    <td>${referenceString}</td>
-                    <td>${data.fifo_faults}</td>
-                    <td>${data.lru_faults}</td>
-                    <td>${data.optimal_faults}</td>
-                    <td>${data.flru_faults}</td>
-                    <td>${data.lfu_faults}</td>
-                    <td>${data.clock_faults}</td>
-                    <td>${data.lruf_faults}</td>
-                `;
-                tbody.insertBefore(tr, tbody.firstChild);
-
-            } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred while running the simulation.');
-            } finally {
-                spinner.classList.add('d-none');
-                submitButton.disabled = false;
-            }
-        });
-    </script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

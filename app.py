@@ -13,13 +13,42 @@ import gc
 import psutil
 import os
 import json
+from functools import lru_cache
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 
-# Store previous results with a maximum limit to prevent memory issues
-MAX_HISTORY = 10
+# Initialize previous results storage
 previous_results = []
+MAX_HISTORY = 100
+
+# Cache for algorithm results
+@lru_cache(maxsize=1000)
+def cached_algorithm(algorithm: str, page_frames: int, ref_str: str) -> Tuple[int, List[List[int]]]:
+    """
+    Cache results of algorithm runs to improve performance.
+    
+    Args:
+        algorithm: The page replacement algorithm to use
+        page_frames: Number of page frames
+        ref_str: Comma-separated string of page references
+        
+    Returns:
+        Tuple of (page_faults, memory_states)
+    """
+    reference_string = [int(x) for x in ref_str.split(',')]
+    algorithms = {
+        'fifo': fifo,
+        'lru': lru,
+        'optimal': optimal,
+        'lfu': lfu,
+        'clock': clock,
+        'flru': flru,
+        'lruf': lruf
+    }
+    return algorithms[algorithm](page_frames, reference_string)
 
 def get_memory_usage() -> Dict[str, float]:
     """
@@ -33,7 +62,8 @@ def get_memory_usage() -> Dict[str, float]:
     return {
         'rss': memory_info.rss / 1024 / 1024,  # Resident Set Size in MB
         'vms': memory_info.vms / 1024 / 1024,  # Virtual Memory Size in MB
-        'percent': process.memory_percent()
+        'percent': process.memory_percent(),
+        'cpu_percent': process.cpu_percent()
     }
 
 def cleanup_memory():
@@ -160,164 +190,287 @@ def get_performance_comparison(results: List[Dict[str, Any]]) -> Dict[str, float
     return comparison
 
 # Page Replacement Algorithms
-def fifo(page_frames: int, reference_string: List[int]) -> int:
-    memory = deque(maxlen=page_frames)
-    page_faults = 0
-
-    for page in reference_string:
-        if page not in memory:
-            page_faults += 1
-            memory.append(page)
-    return page_faults
-
-def lru(page_frames: int, reference_string: List[int]) -> int:
-    memory = OrderedDict()
-    page_faults = 0
-
-    for page in reference_string:
-        if page not in memory:
-            page_faults += 1
-            if len(memory) == page_frames:
-                memory.popitem(last=False)  # Remove least recently used page
-            memory[page] = True
-        else:
-            memory.move_to_end(page)  # Mark as recently used
-    return page_faults
-
-def optimal(page_frames: int, reference_string: List[int]) -> int:
+def fifo(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
+    """
+    First In First Out (FIFO) page replacement algorithm.
+    """
     memory = []
     page_faults = 0
+    memory_states = []
+
+    for page in reference_string:
+        memory_states.append(list(memory))  # Store current state
+        if page not in memory:
+            page_faults += 1
+            if len(memory) >= page_frames:
+                memory.pop(0)  # Remove the first (oldest) page
+            memory.append(page)
+    
+    memory_states.append(list(memory))  # Store final state
+    return page_faults, optimize_memory_states(memory_states)
+
+def lru(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
+    """
+    Least Recently Used (LRU) page replacement algorithm.
+    """
+    memory = []
+    page_faults = 0
+    memory_states = []
+
+    for page in reference_string:
+        memory_states.append(list(memory))  # Store current state
+        if page not in memory:
+            page_faults += 1
+            if len(memory) >= page_frames:
+                memory.pop(0)  # Remove least recently used page
+            memory.append(page)
+        else:
+            # Move the accessed page to the end (most recently used)
+            memory.remove(page)
+            memory.append(page)
+    
+    memory_states.append(list(memory))  # Store final state
+    return page_faults, optimize_memory_states(memory_states)
+
+def optimal(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
+    """
+    Optimal (MIN) page replacement algorithm.
+    """
+    memory = []
+    page_faults = 0
+    memory_states = []
 
     for i, page in enumerate(reference_string):
+        memory_states.append(list(memory))  # Store current state
         if page not in memory:
             page_faults += 1
-            if len(memory) == page_frames:
-                farthest = -1
-                replace_page = -1
-                for p in memory:
-                    if p not in reference_string[i:]:
-                        replace_page = p
-                        break
-                    else:
-                        idx = reference_string[i:].index(p)
-                        if idx > farthest:
-                            farthest = idx
-                            replace_page = p
-                memory.remove(replace_page)
+            if len(memory) >= page_frames:
+                # Find the page that won't be used for the longest time
+                future_pages = reference_string[i+1:]
+                if not future_pages:
+                    memory.pop(0)
+                else:
+                    # Find which page in memory will be used furthest in the future
+                    furthest_use = -1
+                    replace_page = memory[0]
+                    for current_page in memory:
+                        if current_page not in future_pages:
+                            replace_page = current_page
+                            break
+                        else:
+                            use_index = future_pages.index(current_page)
+                            if use_index > furthest_use:
+                                furthest_use = use_index
+                                replace_page = current_page
+                    memory.remove(replace_page)
             memory.append(page)
-    return page_faults
+    
+    memory_states.append(list(memory))  # Store final state
+    return page_faults, optimize_memory_states(memory_states)
 
-def lfu(page_frames: int, reference_string: List[int]) -> int:
+def lfu(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
+    """
+    Least Frequently Used (LFU) page replacement algorithm.
+    """
     memory = []
-    frequency = Counter()
     page_faults = 0
+    frequency = Counter()
+    memory_states = []
 
     for page in reference_string:
+        memory_states.append(list(memory))  # Store current state
         frequency[page] += 1
         if page not in memory:
             page_faults += 1
-            if len(memory) == page_frames:
-                # Remove least frequently used page
-                least_frequent = min(memory, key=lambda p: frequency[p])
-                memory.remove(least_frequent)
+            if len(memory) >= page_frames:
+                # Find least frequently used page
+                lfu_page = min(memory, key=lambda x: frequency[x])
+                memory.remove(lfu_page)
             memory.append(page)
-    return page_faults
+    
+    memory_states.append(list(memory))  # Store final state
+    return page_faults, optimize_memory_states(memory_states)
 
-def clock(page_frames: int, reference_string: List[int]) -> int:
+def clock(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
+    """
+    Clock page replacement algorithm.
+    """
     memory = [-1] * page_frames
     reference_bit = [0] * page_frames
     pointer = 0
     page_faults = 0
+    memory_states = []
 
     for page in reference_string:
+        # Store current state (excluding -1 values)
+        current_state = [p for p in memory if p != -1]
+        memory_states.append(list(current_state))
+
         if page in memory:
-            reference_bit[memory.index(page)] = 1  # Give second chance
+            reference_bit[memory.index(page)] = 1
         else:
             page_faults += 1
-            while reference_bit[pointer] == 1:
+            while True:
+                if memory[pointer] == -1:
+                    memory[pointer] = page
+                    reference_bit[pointer] = 1
+                    pointer = (pointer + 1) % page_frames
+                    break
+                if reference_bit[pointer] == 0:
+                    memory[pointer] = page
+                    reference_bit[pointer] = 1
+                    pointer = (pointer + 1) % page_frames
+                    break
                 reference_bit[pointer] = 0
                 pointer = (pointer + 1) % page_frames
-            memory[pointer] = page
-            reference_bit[pointer] = 1
-            pointer = (pointer + 1) % page_frames
-    return page_faults
+
+    # Store final state (excluding -1 values)
+    final_state = [p for p in memory if p != -1]
+    memory_states.append(list(final_state))
+    return page_faults, optimize_memory_states(memory_states)
 
 def flru(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
     """
     Frequency Least Recently Used (FLRU) page replacement algorithm.
-    Combines frequency counting with LRU for better page replacement decisions.
+    Prioritizes frequency over recency for replacement decisions.
     """
     memory = []
-    page_faults = 0
-    frequency = Counter()
     memory_states = []
+    frequency = Counter()
+    last_used = {}
+    page_faults = 0
 
-    for page in reference_string:
+    for i, page in enumerate(reference_string):
+        memory_states.append(list(memory))  # Store current state
+        
         frequency[page] += 1
+        last_used[page] = i
+        
         if page not in memory:
             page_faults += 1
-            if len(memory) == page_frames:
-                # Find page with lowest frequency, break ties with LRU
-                least_used = min(memory, key=lambda p: (frequency[p], reference_string.index(p)))
-                memory.remove(least_used)
+            if len(memory) >= page_frames:
+                # First prioritize by frequency, then by recency
+                victim = min(memory, key=lambda p: (frequency[p], last_used[p]))
+                memory.remove(victim)
             memory.append(page)
-        memory_states.append(list(memory))
     
-    # Optimize memory states before returning
-    memory_states = optimize_memory_states(memory_states)
-    return page_faults, memory_states
+    memory_states.append(list(memory))  # Store final state
+    return page_faults, optimize_memory_states(memory_states)
 
 def lruf(page_frames: int, reference_string: List[int]) -> Tuple[int, List[List[int]]]:
     """
     Least Recently Used with Frequency (LRUF) page replacement algorithm.
-    Combines LRU with frequency counting to make replacement decisions.
+    Prioritizes recency over frequency for replacement decisions.
     """
     memory = []
-    page_faults = 0
-    frequency = Counter()
     memory_states = []
+    frequency = Counter()
+    last_used = {}
+    page_faults = 0
 
-    for page in reference_string:
+    for i, page in enumerate(reference_string):
+        memory_states.append(list(memory))  # Store current state
+        
         frequency[page] += 1
+        last_used[page] = i
+        
         if page not in memory:
             page_faults += 1
-            if len(memory) == page_frames:
-                least_used = min(memory, key=lambda p: (frequency[p], reference_string.index(p)))
-                memory.remove(least_used)
+            if len(memory) >= page_frames:
+                # First prioritize by recency, then by frequency
+                victim = min(memory, key=lambda p: (last_used[p], frequency[p]))
+                memory.remove(victim)
             memory.append(page)
-        memory_states.append(list(memory))
     
-    # Optimize memory states before returning
-    memory_states = optimize_memory_states(memory_states)
-    return page_faults, memory_states
+    memory_states.append(list(memory))  # Store final state
+    return page_faults, optimize_memory_states(memory_states)
 
 def generate_visualization(memory_states: List[List[int]], algorithm_name: str) -> str:
     """
-    Generate a visualization of the page replacement process.
+    Generate a visualization combining Gantt Chart and Step Chart for page replacement process.
+    Returns a base64 encoded PNG image.
     """
-    plt.switch_backend('Agg')  # Ensure we're using Agg backend
+    plt.switch_backend('Agg')
     
     try:
-        fig, ax = plt.subplots(figsize=(12, 6))
+        if not memory_states:
+            return ""
+
+        # Get all unique pages
+        all_pages = set()
+        for state in memory_states:
+            all_pages.update(state)
+        all_pages = sorted(list(all_pages))
         
-        # Create scatter plot for each memory state
-        for i, state in enumerate(memory_states):
-            if state:  # Only plot if there are pages in memory
-                ax.scatter([i] * len(state), state, 
-                          label=f"Step {i+1}" if i == 0 else "", 
-                          color='b', 
-                          alpha=0.6)
+        # Create figure with two subplots with more height for the Gantt chart
+        fig = plt.figure(figsize=(12, 8))
+        gs = fig.add_gridspec(2, 1, height_ratios=[2, 1], hspace=0.4)
+        ax1 = fig.add_subplot(gs[0])
+        ax2 = fig.add_subplot(gs[1])
         
-        # Customize the plot
-        ax.set_xlabel("Time Step", fontsize=10)
-        ax.set_ylabel("Pages in Memory", fontsize=10)
-        ax.set_title(f"{algorithm_name} Page Replacement Visualization", fontsize=12, pad=20)
-        ax.grid(True, linestyle='--', alpha=0.7)
+        fig.suptitle(f'{algorithm_name} Page Replacement Process', fontsize=14, y=0.98)
         
-        # Add legend only for the first few steps to avoid cluttering
-        handles, labels = ax.get_legend_handles_labels()
-        if len(handles) > 5:
-            ax.legend(handles[:5], labels[:5], loc='upper right')
+        # Gantt Chart (Top)
+        time_points = range(len(memory_states))
+        colors = plt.cm.Set3(np.linspace(0, 1, len(all_pages)))
+        color_map = dict(zip(all_pages, colors))
+        
+        for page in all_pages:
+            current_start = None
+            
+            for t in time_points:
+                is_present = page in memory_states[t]
+                
+                if is_present and current_start is None:
+                    current_start = t
+                elif not is_present and current_start is not None:
+                    ax1.barh(y=page, width=t-current_start, left=current_start,
+                            color=color_map[page], alpha=0.7, edgecolor='black',
+                            label=f'Page {page}' if current_start == 0 else "")
+                    current_start = None
+                    
+            if current_start is not None:
+                ax1.barh(y=page, width=len(memory_states)-current_start, left=current_start,
+                        color=color_map[page], alpha=0.7, edgecolor='black',
+                        label=f'Page {page}' if current_start == 0 else "")
+        
+        # Customize Gantt Chart
+        ax1.set_xlabel('Time Step', fontsize=10, labelpad=10)
+        ax1.set_ylabel('Page Number', fontsize=10, labelpad=10)
+        ax1.set_yticks(all_pages)
+        ax1.set_yticklabels([f'Page {p}' for p in all_pages])
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        ax1.set_title('Page Presence Timeline (Gantt Chart)', pad=20, fontsize=12)
+        
+        # Add legend with multiple columns if many pages
+        if len(all_pages) > 6:
+            ax1.legend(ncol=3, bbox_to_anchor=(0.5, -0.1), loc='upper center', 
+                      fontsize=8, title='Page Numbers')
+        else:
+            ax1.legend(ncol=len(all_pages), bbox_to_anchor=(0.5, -0.1), 
+                      loc='upper center', fontsize=9, title='Page Numbers')
+        
+        # Step Chart (Bottom)
+        memory_sizes = [len(state) for state in memory_states]
+        ax2.step(time_points, memory_sizes, where='post', color='blue', 
+                 alpha=0.7, linewidth=2, label='Pages in Memory')
+        ax2.fill_between(time_points, memory_sizes, step='post', alpha=0.3)
+        
+        # Customize Step Chart
+        ax2.set_xlabel('Time Step', fontsize=10, labelpad=10)
+        ax2.set_ylabel('Pages in Memory', fontsize=10, labelpad=10)
+        ax2.grid(True, alpha=0.3, linestyle='--')
+        ax2.set_title('Memory Utilization (Step Chart)', pad=20, fontsize=12)
+        
+        # Set y-axis limits for step chart
+        ax2.set_ylim(0, max(memory_sizes) + 1)
+        
+        # Add value labels on the step chart
+        for i, size in enumerate(memory_sizes):
+            ax2.text(i, size + 0.1, str(size), ha='center', va='bottom')
+        
+        # Adjust layout to prevent overlapping
+        plt.tight_layout()
         
         # Save plot to base64 string
         img = io.BytesIO()
@@ -335,6 +488,45 @@ def generate_visualization(memory_states: List[List[int]], algorithm_name: str) 
     finally:
         # Ensure all plots are closed
         plt.close('all')
+
+def run_algorithms_parallel(page_frames: int, reference_string: List[int]) -> Dict[str, Any]:
+    """
+    Run all algorithms in parallel using ThreadPoolExecutor for better performance.
+    """
+    algorithms = {
+        'fifo': fifo,
+        'lru': lru,
+        'optimal': optimal,
+        'lfu': lfu,
+        'clock': clock,
+        'flru': flru,
+        'lruf': lruf
+    }
+    
+    results = {}
+    memory_states = {}
+    
+    with ThreadPoolExecutor(max_workers=len(algorithms)) as executor:
+        futures = {
+            name: executor.submit(func, page_frames, reference_string)
+            for name, func in algorithms.items()
+        }
+        
+        for name, future in futures.items():
+            faults, states = future.result()
+            results[name] = faults
+            memory_states[name] = states
+    
+    # Generate visualizations for each algorithm
+    visualizations = {}
+    for name, states in memory_states.items():
+        visualizations[name] = generate_visualization(states, name.upper())
+    
+    return {
+        'results': results,
+        'memory_states': memory_states,
+        'visualizations': visualizations
+    }
 
 @app.route("/")
 def home():
@@ -361,7 +553,6 @@ def simulate():
             return jsonify({"error": "Invalid page frames value"}), 400
             
         try:
-            # The reference string is already a list of integers from the frontend
             reference_string = data["reference_string"]
             if not isinstance(reference_string, list):
                 return jsonify({"error": "Reference string must be a list of integers"}), 400
@@ -376,31 +567,17 @@ def simulate():
 
         app.logger.info(f"Starting simulation with {page_frames} frames and {len(reference_string)} references")
 
-        # Run algorithms
-        try:
-            fifo_faults = fifo(page_frames, reference_string)
-            lru_faults = lru(page_frames, reference_string)
-            optimal_faults = optimal(page_frames, reference_string)
-            lfu_faults = lfu(page_frames, reference_string)
-            clock_faults = clock(page_frames, reference_string)
-            flru_faults, _ = flru(page_frames, reference_string)
-            lruf_faults, _ = lruf(page_frames, reference_string)
-        except Exception as e:
-            app.logger.error(f"Error running algorithms: {str(e)}")
-            return jsonify({"error": "Error running page replacement algorithms"}), 500
-
+        # Run algorithms in parallel
+        parallel_results = run_algorithms_parallel(page_frames, reference_string)
+        results = parallel_results['results']
+        visualizations = parallel_results['visualizations']
+        
         # Store results with timestamp
         result = {
             "timestamp": datetime.now().isoformat(),
             "page_frames": page_frames,
             "reference_string": reference_string,
-            "fifo_faults": fifo_faults,
-            "lru_faults": lru_faults,
-            "optimal_faults": optimal_faults,
-            "lfu_faults": lfu_faults,
-            "clock_faults": clock_faults,
-            "flru_faults": flru_faults,
-            "lruf_faults": lruf_faults
+            **{f"{algo}_faults": faults for algo, faults in results.items()}
         }
         
         # Add to previous results and maintain history limit
@@ -409,12 +586,7 @@ def simulate():
             previous_results.pop(0)
 
         # Calculate statistics
-        all_faults = [
-            fifo_faults, lru_faults, optimal_faults, 
-            lfu_faults, clock_faults, flru_faults, lruf_faults
-        ]
-        
-        # Find best algorithm
+        all_faults = list(results.values())
         algorithms = ['FIFO', 'LRU', 'Optimal', 'LFU', 'Clock', 'FLRU', 'LRUF']
         best_algorithm = algorithms[all_faults.index(min(all_faults))]
         
@@ -424,6 +596,16 @@ def simulate():
         min_faults = min(all_faults)
         max_faults = max(all_faults)
         median_faults = statistics.median(all_faults)
+
+        # Calculate hit rates and miss ratios
+        hit_rates = {}
+        miss_ratios = {}
+        total_references = len(reference_string)
+        
+        for algo, faults in results.items():
+            hits = total_references - faults
+            hit_rates[algo] = hits / total_references
+            miss_ratios[algo] = faults / total_references
 
         # Prepare visualization data for Plotly
         visualization_data = {
@@ -447,6 +629,29 @@ def simulate():
             }
         }
 
+        # Prepare miss ratio visualization
+        miss_ratio_data = {
+            'data': [{
+                'x': algorithms,
+                'y': [miss_ratios[algo.lower()] * 100 for algo in algorithms],
+                'type': 'bar',
+                'text': [f"{(miss_ratios[algo.lower()] * 100):.1f}%" for algo in algorithms],
+                'textposition': 'auto',
+                'marker': {
+                    'color': ['#dc3545', '#198754', '#0d6efd', '#ffc107', '#0dcaf0', '#6f42c1', '#fd7e14']
+                },
+                'name': 'Miss Ratio'
+            }],
+            'layout': {
+                'title': 'Page Miss Ratio Comparison',
+                'xaxis': {'title': 'Algorithms'},
+                'yaxis': {'title': 'Miss Ratio (%)'},
+                'showlegend': True,
+                'height': 400,
+                'margin': {'l': 50, 'r': 50, 't': 50, 'b': 50}
+            }
+        }
+
         # Perform memory cleanup
         cleanup_memory()
         
@@ -456,24 +661,23 @@ def simulate():
 
         app.logger.info("Simulation completed successfully")
         return jsonify({
-            "fifo_faults": fifo_faults,
-            "lru_faults": lru_faults,
-            "optimal_faults": optimal_faults,
-            "lfu_faults": lfu_faults,
-            "clock_faults": clock_faults,
-            "flru_faults": flru_faults,
-            "lruf_faults": lruf_faults,
+            **{f"{algo.lower()}_faults": results[algo.lower()] for algo in algorithms},
             "best_algorithm": best_algorithm,
             "avg_faults": avg_faults,
             "std_dev": std_dev,
             "min_faults": min_faults,
             "max_faults": max_faults,
             "median_faults": median_faults,
+            "hit_rates": hit_rates,
+            "miss_ratios": miss_ratios,
             "visualization": visualization_data,
+            "miss_ratio_visualization": miss_ratio_data,
+            "algorithm_visualizations": visualizations,
             "memory_stats": {
                 "rss": final_memory['rss'],
                 "vms": final_memory['vms'],
-                "usage": final_memory['percent']
+                "usage": final_memory['percent'],
+                "cpu_usage": final_memory['cpu_percent']
             }
         })
 
