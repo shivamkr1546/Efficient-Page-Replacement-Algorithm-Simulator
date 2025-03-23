@@ -571,6 +571,7 @@ def simulate():
         parallel_results = run_algorithms_parallel(page_frames, reference_string)
         results = parallel_results['results']
         visualizations = parallel_results['visualizations']
+        memory_states = parallel_results['memory_states']  # Get memory states
         
         # Store results with timestamp
         result = {
@@ -673,6 +674,7 @@ def simulate():
             "visualization": visualization_data,
             "miss_ratio_visualization": miss_ratio_data,
             "algorithm_visualizations": visualizations,
+            "memory_states": memory_states,  # Add memory states to response
             "memory_stats": {
                 "rss": final_memory['rss'],
                 "vms": final_memory['vms'],

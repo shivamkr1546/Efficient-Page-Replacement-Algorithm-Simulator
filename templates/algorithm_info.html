@@ -1,0 +1,94 @@
+<!-- Algorithm Information Modal -->
+<div class="modal fade" id="algorithmInfoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Algorithm Information</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="nav nav-tabs" id="algorithmTabs" role="tablist">
+                    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                        Overview
+                    </button>
+                    <button class="nav-link" id="tutorial-tab" data-bs-toggle="tab" data-bs-target="#tutorial" type="button" role="tab">
+                        Interactive Tutorial
+                    </button>
+                    <button class="nav-link" id="quiz-tab" data-bs-toggle="tab" data-bs-target="#quiz" type="button" role="tab">
+                        Quiz
+                    </button>
+                </div>
+                
+                <div class="tab-content mt-3" id="algorithmTabContent">
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                        <div class="algorithm-overview">
+                            <h6>How it works:</h6>
+                            <p class="algorithm-description"></p>
+                            
+                            <h6 class="mt-4">Key Features:</h6>
+                            <ul class="algorithm-features"></ul>
+                            
+                            <h6 class="mt-4">Time Complexity:</h6>
+                            <p class="algorithm-complexity"></p>
+                            
+                            <h6 class="mt-4">Space Complexity:</h6>
+                            <p class="algorithm-space"></p>
+                            
+                            <h6 class="mt-4">Real-world Applications:</h6>
+                            <ul class="algorithm-applications"></ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Tutorial Tab -->
+                    <div class="tab-pane fade" id="tutorial" role="tabpanel">
+                        <div class="tutorial-container">
+                            <div class="tutorial-step">
+                                <h6>Step <span class="step-number">1</span></h6>
+                                <p class="step-description"></p>
+                                <div class="step-visualization"></div>
+                                <div class="step-controls mt-3">
+                                    <button class="btn btn-sm btn-outline-primary prev-step" disabled>
+                                        <i class="bi bi-arrow-left"></i> Previous
+                                    </button>
+                                    <button class="btn btn-sm btn-primary next-step">
+                                        Next <i class="bi bi-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Tab -->
+                    <div class="tab-pane fade" id="quiz" role="tabpanel">
+                        <div class="quiz-container">
+                            <div class="quiz-question">
+                                <h6>Question <span class="question-number">1</span></h6>
+                                <p class="question-text"></p>
+                                <div class="question-options"></div>
+                            </div>
+                            <div class="quiz-feedback mt-3" style="display: none;">
+                                <div class="alert"></div>
+                                <button class="btn btn-sm btn-primary next-question">
+                                    Next Question <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+                            <div class="quiz-results mt-3" style="display: none;">
+                                <h6>Quiz Results</h6>
+                                <p>Score: <span class="quiz-score"></span></p>
+                                <button class="btn btn-sm btn-primary retry-quiz">
+                                    <i class="bi bi-arrow-clockwise"></i> Retry Quiz
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Algorithm Information Button -->
+<button class="btn btn-sm btn-outline-info algorithm-info-btn" data-bs-toggle="modal" data-bs-target="#algorithmInfoModal">
+    <i class="bi bi-info-circle"></i> Learn More
+</button> 

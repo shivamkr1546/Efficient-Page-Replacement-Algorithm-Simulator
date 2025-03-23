@@ -1,5 +1,35 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('simulationForm');
+    const themeToggle = document.getElementById('themeToggle');
+    const htmlElement = document.documentElement;
+    const themeIcon = themeToggle.querySelector('i');
+
+    // Theme management
+    function setTheme(theme) {
+        htmlElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        themeIcon.className = theme === 'light' ? 'bi bi-moon' : 'bi bi-sun';
+        
+        // Update any plotly charts if they exist
+        const plots = document.querySelectorAll('[id^="visualization"]');
+        plots.forEach(plot => {
+            if (plot.data) {
+                const newTemplate = theme === 'light' ? 'plotly' : 'plotly_dark';
+                Plotly.relayout(plot, {template: newTemplate});
+            }
+        });
+    }
+
+    // Load saved theme or default to light
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+
+    // Theme toggle handler
+    themeToggle.addEventListener('click', () => {
+        const currentTheme = htmlElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
+    });
     
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -75,136 +105,318 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function displayResults(data) {
-    // Clear previous results
-    clearResults();
+    // Show results container
+    const resultsContainer = document.getElementById('results');
+    resultsContainer.style.display = 'flex';
     
-    // Show results section
-    document.getElementById('results').style.display = 'block';
-    
-    // Display page faults for each algorithm
+    // Display metrics
+    const metrics = document.getElementById('metrics');
+    metrics.innerHTML = `
+        <div class="col-md-6">
+            <div class="mb-3">
+                <h6><i class="bi bi-star-fill text-warning"></i> Best Algorithm</h6>
+                <p class="h4">${data.best_algorithm}</p>
+            </div>
+            <div class="mb-3">
+                <h6><i class="bi bi-calculator"></i> Average Faults</h6>
+                <p class="h4">${data.avg_faults.toFixed(2)}</p>
+            </div>
+            <div class="mb-3">
+                <h6><i class="bi bi-arrow-down-up"></i> Median Faults</h6>
+                <p class="h4">${data.median_faults}</p>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="mb-3">
+                <h6><i class="bi bi-arrow-down"></i> Min Faults</h6>
+                <p class="h4">${data.min_faults}</p>
+            </div>
+            <div class="mb-3">
+                <h6><i class="bi bi-arrow-up"></i> Max Faults</h6>
+                <p class="h4">${data.max_faults}</p>
+            </div>
+            <div class="mb-3">
+                <h6><i class="bi bi-distribute-vertical"></i> Standard Deviation</h6>
+                <p class="h4">${data.std_dev.toFixed(2)}</p>
+            </div>
+        </div>
+    `;
+
+    // Create Plotly visualizations with theme support
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const plotlyTemplate = currentTheme === 'light' ? 'plotly' : 'plotly_dark';
+
+    // Update visualization layout with theme
+    const visualizationLayout = {
+        ...data.visualization.layout,
+        template: plotlyTemplate
+    };
+    const missRatioLayout = {
+        ...data.miss_ratio_visualization.layout,
+        template: plotlyTemplate
+    };
+
+    Plotly.newPlot('visualization', data.visualization.data, visualizationLayout);
+    Plotly.newPlot('miss-ratio-visualization', data.miss_ratio_visualization.data, missRatioLayout);
+
+    // Display algorithm visualizations
+    const algoVisContainer = document.getElementById('algorithm-visualizations');
+    algoVisContainer.innerHTML = '';
+
     const algorithms = ['FIFO', 'LRU', 'Optimal', 'LFU', 'Clock', 'FLRU', 'LRUF'];
-    const resultsTable = document.getElementById('results-table');
-    
-    // Create table header
-    const headerRow = resultsTable.insertRow();
-    ['Algorithm', 'Page Faults', 'Hit Rate', 'Miss Ratio'].forEach(text => {
-        const th = document.createElement('th');
-        th.textContent = text;
-        headerRow.appendChild(th);
-    });
-    
-    // Add results for each algorithm
-    algorithms.forEach(algo => {
-        const row = resultsTable.insertRow();
-        const lowerAlgo = algo.toLowerCase();
-        
-        // Algorithm name
-        row.insertCell().textContent = algo;
-        
-        // Page faults
-        row.insertCell().textContent = data[`${lowerAlgo}_faults`];
-        
-        // Hit rate
-        row.insertCell().textContent = `${(data.hit_rates[lowerAlgo] * 100).toFixed(1)}%`;
-        
-        // Miss ratio
-        row.insertCell().textContent = `${(data.miss_ratios[lowerAlgo] * 100).toFixed(1)}%`;
-    });
-    
-    // Display performance metrics
-    document.getElementById('best-algorithm').textContent = data.best_algorithm;
-    document.getElementById('avg-faults').textContent = data.avg_faults.toFixed(2);
-    document.getElementById('min-faults').textContent = data.min_faults;
-    document.getElementById('max-faults').textContent = data.max_faults;
-    document.getElementById('median-faults').textContent = data.median_faults;
-    document.getElementById('std-dev').textContent = data.std_dev.toFixed(2);
-    
-    // Display visualizations
-    Plotly.newPlot('visualization', data.visualization.data, data.visualization.layout);
-    Plotly.newPlot('miss-ratio-visualization', data.miss_ratio_visualization.data, data.miss_ratio_visualization.layout);
-    
-    // Display algorithm-specific visualizations
-    const visualizationsDiv = document.getElementById('algorithm-visualizations');
     algorithms.forEach(algo => {
         const algoDiv = document.createElement('div');
-        algoDiv.className = 'col-12 mb-4';  // Changed to full width for better visualization
+        algoDiv.className = 'col-md-4 mb-4';
+        
+        const faults = data[algo.toLowerCase() + '_faults'];
+        const hitRate = data.hit_rates[algo.toLowerCase()] * 100;
+        const missRate = data.miss_ratios[algo.toLowerCase()] * 100;
+        
         algoDiv.innerHTML = `
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">${algo} Visualization</h5>
-                    <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-secondary zoom-in">
-                            <i class="bi bi-zoom-in"></i> Zoom In
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary zoom-out">
-                            <i class="bi bi-zoom-out"></i> Zoom Out
-                        </button>
+                    <h5 class="card-title mb-0">${algo}</h5>
+                    <button class="btn btn-sm btn-outline-primary learn-more-btn" data-algorithm="${algo.toLowerCase()}">
+                        <i class="bi bi-info-circle"></i> Learn More
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Page Faults: ${faults}</span>
+                            <span>Hit Rate: ${hitRate.toFixed(1)}%</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar bg-success" style="width: ${hitRate}%">
+                                Hits ${hitRate.toFixed(1)}%
+                            </div>
+                            <div class="progress-bar bg-danger" style="width: ${missRate}%">
+                                Misses ${missRate.toFixed(1)}%
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="card-body visualization-container">
-                    <img src="data:image/png;base64,${data.algorithm_visualizations[algo.toLowerCase()]}" 
-                         alt="${algo} visualization"
-                         class="img-fluid visualization-image"
-                         data-algo="${algo}">
-                    <div class="visualization-tooltip"></div>
-                </div>
-                <div class="card-footer">
-                    <small class="text-muted">
-                        Top: Page Presence Timeline (Gantt Chart) - Shows when each page is in memory<br>
-                        Bottom: Memory Utilization (Step Chart) - Shows number of pages in memory over time
-                    </small>
+                    <div class="visualization-container position-relative">
+                        <img src="data:image/png;base64,${data.algorithm_visualizations[algo.toLowerCase()]}" 
+                             class="img-fluid" alt="${algo} visualization" data-algo="${algo}">
+                        <div class="visualization-controls">
+                            <button class="btn btn-sm btn-outline-primary zoom-in">
+                                <i class="bi bi-zoom-in"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary zoom-out">
+                                <i class="bi bi-zoom-out"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary fullscreen">
+                                <i class="bi bi-fullscreen"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary play-pause">
+                                <i class="bi bi-play-fill"></i>
+                            </button>
+                            <select class="form-select form-select-sm animation-speed">
+                                <option value="0.5">0.5x</option>
+                                <option value="1" selected>1x</option>
+                                <option value="2">2x</option>
+                            </select>
+                        </div>
+                        <div class="visualization-tooltip"></div>
+                    </div>
                 </div>
             </div>
         `;
-        visualizationsDiv.appendChild(algoDiv);
-        
-        // Add zoom functionality
-        const img = algoDiv.querySelector('.visualization-image');
-        const zoomIn = algoDiv.querySelector('.zoom-in');
-        const zoomOut = algoDiv.querySelector('.zoom-out');
-        let scale = 1;
-        
-        zoomIn.addEventListener('click', () => {
-            scale = Math.min(scale + 0.2, 2);
-            img.style.transform = `scale(${scale})`;
+
+        // Add event listener for Learn More button
+        const learnMoreBtn = algoDiv.querySelector('.learn-more-btn');
+        learnMoreBtn.addEventListener('click', () => {
+            const algorithmName = learnMoreBtn.dataset.algorithm;
+            showAlgorithmInfo(algorithmName);
         });
-        
-        zoomOut.addEventListener('click', () => {
-            scale = Math.max(scale - 0.2, 0.5);
-            img.style.transform = `scale(${scale})`;
-        });
-        
-        // Add tooltip functionality
-        const container = algoDiv.querySelector('.visualization-container');
-        const tooltip = algoDiv.querySelector('.visualization-tooltip');
-        
-        img.addEventListener('mousemove', (e) => {
-            const rect = img.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            tooltip.style.display = 'block';
-            tooltip.style.left = `${x + 10}px`;
-            tooltip.style.top = `${y + 10}px`;
-            
-            // Calculate time step and page number from position
-            const timeStep = Math.floor((x / rect.width) * data.memory_states[algo.toLowerCase()].length);
-            const state = data.memory_states[algo.toLowerCase()][timeStep] || [];
-            
-            tooltip.innerHTML = `
-                Time Step: ${timeStep}<br>
-                Pages in Memory: ${state.join(', ') || 'None'}<br>
-                Memory Usage: ${state.length} pages
-            `;
-        });
-        
-        img.addEventListener('mouseout', () => {
-            tooltip.style.display = 'none';
-        });
+
+        algoVisContainer.appendChild(algoDiv);
+
+        // Initialize visualization controls
+        initializeVisualizationControls(algoDiv, data, algo);
     });
     
     // Update system resources
     updateSystemResources(data.memory_stats);
+}
+
+function initializeVisualizationControls(container, data, algo) {
+    const img = container.querySelector('img');
+    const controls = container.querySelector('.visualization-controls');
+    const tooltip = container.querySelector('.visualization-tooltip');
+    const playPause = controls.querySelector('.play-pause');
+    const speedSelect = controls.querySelector('.animation-speed');
+    let isPlaying = false;
+    
+    // Add zoom functionality
+    const zoomIn = controls.querySelector('.zoom-in');
+    const zoomOut = controls.querySelector('.zoom-out');
+    let scale = 1;
+    
+    zoomIn.addEventListener('click', () => {
+        scale = Math.min(scale + 0.2, 2);
+        img.style.transform = `scale(${scale})`;
+    });
+    
+    zoomOut.addEventListener('click', () => {
+        scale = Math.max(scale - 0.2, 0.5);
+        img.style.transform = `scale(${scale})`;
+    });
+
+    // Add fullscreen functionality
+    const fullscreenBtn = controls.querySelector('.fullscreen');
+    fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            img.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    });
+    
+    // Add animation controls
+    let animationInterval;
+    let currentStep = 0;
+    const totalSteps = data.memory_states[algo.toLowerCase()].length;
+    
+    playPause.addEventListener('click', () => {
+        isPlaying = !isPlaying;
+        playPause.innerHTML = isPlaying ? 
+            '<i class="bi bi-pause-fill"></i>' : 
+            '<i class="bi bi-play-fill"></i>';
+        
+        if (isPlaying) {
+            const speed = parseFloat(speedSelect.value);
+            animationInterval = setInterval(() => {
+                currentStep = (currentStep + 1) % totalSteps;
+                updateVisualizationStep(currentStep, algo, data);
+            }, 1000 / speed);
+        } else {
+            clearInterval(animationInterval);
+        }
+    });
+    
+    speedSelect.addEventListener('change', () => {
+        if (isPlaying) {
+            clearInterval(animationInterval);
+            const speed = parseFloat(speedSelect.value);
+            animationInterval = setInterval(() => {
+                currentStep = (currentStep + 1) % totalSteps;
+                updateVisualizationStep(currentStep, algo, data);
+            }, 1000 / speed);
+        }
+    });
+    
+    // Add tooltip functionality
+    img.addEventListener('mousemove', (e) => {
+        const rect = img.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        tooltip.style.display = 'block';
+        tooltip.style.left = `${x + 10}px`;
+        tooltip.style.top = `${y + 10}px`;
+        
+        // Calculate time step and page number from position
+        const timeStep = Math.floor((x / rect.width) * totalSteps);
+        const state = data.memory_states[algo.toLowerCase()][timeStep] || [];
+        
+        tooltip.innerHTML = `
+            Time Step: ${timeStep}<br>
+            Pages in Memory: ${state.join(', ') || 'None'}<br>
+            Memory Usage: ${state.length} pages
+        `;
+    });
+    
+    img.addEventListener('mouseout', () => {
+        tooltip.style.display = 'none';
+    });
+}
+
+function updateVisualizationStep(step, algo, data) {
+    const state = data.memory_states[algo.toLowerCase()][step];
+    const tooltip = document.querySelector(`[data-algo="${algo}"]`).nextElementSibling;
+    
+    tooltip.innerHTML = `
+        Time Step: ${step}<br>
+        Pages in Memory: ${state.join(', ') || 'None'}<br>
+        Memory Usage: ${state.length} pages
+    `;
+}
+
+function showAlgorithmInfo(algorithmName) {
+    const modal = new bootstrap.Modal(document.getElementById('algorithmInfoModal'));
+    const info = algorithmInfo[algorithmName];
+    
+    // Update overview tab
+    document.getElementById('algo-description').textContent = info.description;
+    
+    const featuresList = document.getElementById('algo-features');
+    featuresList.innerHTML = info.features.map(feature => `<li>${feature}</li>`).join('');
+    
+    document.getElementById('algo-complexity').textContent = `Time: ${info.complexity}, Space: ${info.space}`;
+    
+    const applicationsList = document.getElementById('algo-applications');
+    applicationsList.innerHTML = info.applications.map(app => `<li>${app}</li>`).join('');
+    
+    // Update tutorial tab
+    const tutorialContent = document.getElementById('tutorial-content');
+    let currentStep = 0;
+    
+    function updateTutorialStep() {
+        const step = info.tutorial[currentStep];
+        tutorialContent.innerHTML = `
+            <h5>Step ${step.step}</h5>
+            <p>${step.description}</p>
+            <img src="/static/images/${step.visualization}" class="img-fluid" alt="Step visualization">
+        `;
+        
+        document.getElementById('prevStep').disabled = currentStep === 0;
+        document.getElementById('nextStep').disabled = currentStep === info.tutorial.length - 1;
+    }
+    
+    updateTutorialStep();
+    
+    document.getElementById('prevStep').onclick = () => {
+        if (currentStep > 0) {
+            currentStep--;
+            updateTutorialStep();
+        }
+    };
+    
+    document.getElementById('nextStep').onclick = () => {
+        if (currentStep < info.tutorial.length - 1) {
+            currentStep++;
+            updateTutorialStep();
+        }
+    };
+    
+    // Update quiz tab
+    const quizContent = document.getElementById('quiz-content');
+    quizContent.innerHTML = info.quiz.map((q, i) => `
+        <div class="mb-4">
+            <h5>Question ${i + 1}</h5>
+            <p>${q.question}</p>
+            ${q.options.map((opt, j) => `
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="q${i}" value="${j}" id="q${i}opt${j}">
+                    <label class="form-check-label" for="q${i}opt${j}">${opt}</label>
+                </div>
+            `).join('')}
+        </div>
+    `).join('');
+    
+    document.getElementById('submitQuiz').onclick = () => {
+        let score = 0;
+        info.quiz.forEach((q, i) => {
+            const selected = document.querySelector(`input[name="q${i}"]:checked`);
+            if (selected && parseInt(selected.value) === q.correct) {
+                score++;
+            }
+        });
+        alert(`Your score: ${score}/${info.quiz.length}`);
+    };
+    
+    modal.show();
 }
 
 function updateSystemResources(stats) {
@@ -221,34 +433,4 @@ function updateSystemResources(stats) {
     // Update memory stats
     document.getElementById('rss-memory').textContent = `${stats.rss.toFixed(2)} MB`;
     document.getElementById('virtual-memory').textContent = `${stats.vms.toFixed(2)} MB`;
-}
-
-function clearResults() {
-    // Clear all result elements
-    const elementsToEmpty = [
-        'results-table',
-        'algorithm-visualizations',
-        'visualization',
-        'miss-ratio-visualization'
-    ];
-    
-    elementsToEmpty.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) element.innerHTML = '';
-    });
-    
-    // Clear text content
-    const textElements = [
-        'best-algorithm',
-        'avg-faults',
-        'min-faults',
-        'max-faults',
-        'median-faults',
-        'std-dev'
-    ];
-    
-    textElements.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) element.textContent = '';
-    });
 } 
