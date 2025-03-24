@@ -1,4 +1,13 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize variables for Page Replacement
+    let currentAlgorithmIndex = 0;
+    const algorithms = ['fifo', 'lru', 'optimal', 'lfu', 'clock', 'flru', 'lruf'];
+    let simulationData = null;
+    let scale = 1;
+    let isPlaying = false;
+    let animationInterval;
+
+    // Form elements
     const form = document.getElementById('simulationForm');
     const themeToggle = document.getElementById('themeToggle');
     const htmlElement = document.documentElement;
@@ -30,7 +39,127 @@ document.addEventListener('DOMContentLoaded', function() {
         const newTheme = currentTheme === 'light' ? 'dark' : 'light';
         setTheme(newTheme);
     });
-    
+
+    function updateVisualization(data) {
+        if (!data) return;
+        
+        simulationData = data;
+        const algorithm = algorithms[currentAlgorithmIndex];
+        const algorithmUpper = algorithm.toUpperCase();
+        
+        // Get all required elements
+        const elements = {
+            title: document.getElementById('currentAlgorithmTitle'),
+            faults: document.getElementById('currentFaults'),
+            hitRate: document.getElementById('currentHitRate'),
+            hit: document.getElementById('currentHit'),
+            miss: document.getElementById('currentMiss'),
+            visualization: document.getElementById('currentVisualization'),
+            learnMore: document.getElementById('currentLearnMore'),
+            prevBtn: document.getElementById('prevAlgorithm'),
+            nextBtn: document.getElementById('nextAlgorithm'),
+            select: document.getElementById('algorithmSelect')
+        };
+
+        // Check if all elements exist
+        if (Object.values(elements).some(el => !el)) {
+            console.error('Some required elements are missing');
+            return;
+        }
+
+        // Update the elements
+        elements.title.textContent = algorithmUpper;
+        elements.faults.textContent = data[`${algorithm}_faults`];
+        elements.hitRate.textContent = `${(data.hit_rates[algorithm] * 100).toFixed(1)}%`;
+        elements.hit.style.width = `${data.hit_rates[algorithm] * 100}%`;
+        elements.miss.style.width = `${data.miss_ratios[algorithm] * 100}%`;
+        elements.visualization.innerHTML = `
+            <img src="data:image/png;base64,${data.algorithm_visualizations[algorithm]}" 
+                 class="img-fluid" alt="${algorithmUpper} Visualization">
+        `;
+        elements.learnMore.dataset.algorithm = algorithm;
+        elements.prevBtn.disabled = currentAlgorithmIndex === 0;
+        elements.nextBtn.disabled = currentAlgorithmIndex === algorithms.length - 1;
+        elements.select.value = algorithm;
+
+        // Initialize visualization controls after updating the visualization
+        initializeVisualizationControls();
+    }
+
+    function initializeVisualizationControls() {
+        const container = document.querySelector('.visualization-container');
+        if (!container) return;
+
+        const img = container.querySelector('img');
+        if (!img) return;
+
+        // Reset scale and animation state
+        scale = 1;
+        isPlaying = false;
+        if (animationInterval) clearInterval(animationInterval);
+
+        // Initialize zoom controls
+        const zoomIn = container.querySelector('.zoom-in');
+        const zoomOut = container.querySelector('.zoom-out');
+        if (zoomIn && zoomOut) {
+            zoomIn.onclick = () => {
+                scale = Math.min(scale + 0.2, 2);
+                img.style.transform = `scale(${scale})`;
+            };
+            zoomOut.onclick = () => {
+                scale = Math.max(scale - 0.2, 0.5);
+                img.style.transform = `scale(${scale})`;
+            };
+        }
+
+        // Initialize fullscreen control
+        const fullscreenBtn = container.querySelector('.fullscreen');
+        if (fullscreenBtn) {
+            fullscreenBtn.onclick = () => {
+                if (!document.fullscreenElement) {
+                    img.requestFullscreen();
+                } else {
+                    document.exitFullscreen();
+                }
+            };
+        }
+
+        // Initialize animation controls
+        const playPauseBtn = container.querySelector('.play-pause');
+        const speedSelect = container.querySelector('.animation-speed');
+        if (playPauseBtn && speedSelect) {
+            playPauseBtn.onclick = () => toggleAnimation(playPauseBtn, speedSelect);
+        }
+    }
+
+    function toggleAnimation(playPauseBtn, speedSelect) {
+        isPlaying = !isPlaying;
+        playPauseBtn.innerHTML = isPlaying ? 
+            '<i class="bi bi-pause-fill"></i>' : 
+            '<i class="bi bi-play-fill"></i>';
+        
+        if (isPlaying) {
+            startAnimation(speedSelect.value);
+        } else {
+            clearInterval(animationInterval);
+        }
+    }
+
+    function startAnimation(speed) {
+        if (!simulationData) return;
+        
+        const algorithm = algorithms[currentAlgorithmIndex];
+        const states = simulationData.memory_states[algorithm];
+        let currentStep = 0;
+        
+        clearInterval(animationInterval);
+        animationInterval = setInterval(() => {
+            currentStep = (currentStep + 1) % states.length;
+            updateVisualizationStep(currentStep, algorithm, simulationData);
+        }, 1000 / parseFloat(speed));
+    }
+
+    // Form submission handler
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -38,11 +167,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('loading').style.display = 'block';
         document.getElementById('results').style.display = 'none';
         
-        // Get input values
-        const pageFrames = document.getElementById('pageFrames').value;
-        const referenceString = document.getElementById('referenceString').value;
-
         try {
+            const pageFrames = document.getElementById('pageFrames').value;
+            const referenceString = document.getElementById('referenceString').value;
+            
             const response = await fetch('/simulate', {
                 method: 'POST',
                 headers: {
@@ -60,8 +188,21 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const data = await response.json();
-            displayResults(data);
-
+            
+            // Reset current algorithm index
+            currentAlgorithmIndex = 0;
+            
+            // Update the visualization
+            updateVisualization(data);
+            
+            // Update other displays
+            updateMetricsDisplay(data);
+            updatePerformanceCharts(data);
+            updateSystemResources(data.memory_stats);
+            
+            // Show results
+            document.getElementById('results').style.display = 'flex';
+            
         } catch (error) {
             console.error('Error:', error);
             alert('An error occurred while running the simulation: ' + error.message);
@@ -69,6 +210,32 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('loading').style.display = 'none';
         }
     });
+
+    // Initialize navigation controls
+    const prevBtn = document.getElementById('prevAlgorithm');
+    const nextBtn = document.getElementById('nextAlgorithm');
+    const algoSelect = document.getElementById('algorithmSelect');
+
+    if (prevBtn && nextBtn && algoSelect) {
+        prevBtn.addEventListener('click', () => {
+            if (currentAlgorithmIndex > 0) {
+                currentAlgorithmIndex--;
+                updateVisualization(simulationData);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentAlgorithmIndex < algorithms.length - 1) {
+                currentAlgorithmIndex++;
+                updateVisualization(simulationData);
+            }
+        });
+
+        algoSelect.addEventListener('change', (e) => {
+            currentAlgorithmIndex = algorithms.indexOf(e.target.value);
+            updateVisualization(simulationData);
+        });
+    }
 
     // Add input validation
     const pageFramesInput = document.getElementById('pageFrames');
@@ -104,12 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function displayResults(data) {
-    // Show results container
-    const resultsContainer = document.getElementById('results');
-    resultsContainer.style.display = 'flex';
-    
-    // Display metrics
+function updateMetricsDisplay(data) {
     const metrics = document.getElementById('metrics');
     metrics.innerHTML = `
         <div class="col-md-6">
@@ -141,199 +303,111 @@ function displayResults(data) {
             </div>
         </div>
     `;
-
-    // Create Plotly visualizations with theme support
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const plotlyTemplate = currentTheme === 'light' ? 'plotly' : 'plotly_dark';
-
-    // Update visualization layout with theme
-    const visualizationLayout = {
-        ...data.visualization.layout,
-        template: plotlyTemplate
-    };
-    const missRatioLayout = {
-        ...data.miss_ratio_visualization.layout,
-        template: plotlyTemplate
-    };
-
-    Plotly.newPlot('visualization', data.visualization.data, visualizationLayout);
-    Plotly.newPlot('miss-ratio-visualization', data.miss_ratio_visualization.data, missRatioLayout);
-
-    // Display algorithm visualizations
-    const algoVisContainer = document.getElementById('algorithm-visualizations');
-    algoVisContainer.innerHTML = '';
-
-    const algorithms = ['FIFO', 'LRU', 'Optimal', 'LFU', 'Clock', 'FLRU', 'LRUF'];
-    algorithms.forEach(algo => {
-        const algoDiv = document.createElement('div');
-        algoDiv.className = 'col-md-4 mb-4';
-        
-        const faults = data[algo.toLowerCase() + '_faults'];
-        const hitRate = data.hit_rates[algo.toLowerCase()] * 100;
-        const missRate = data.miss_ratios[algo.toLowerCase()] * 100;
-        
-        algoDiv.innerHTML = `
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">${algo}</h5>
-                    <button class="btn btn-sm btn-outline-primary learn-more-btn" data-algorithm="${algo.toLowerCase()}">
-                        <i class="bi bi-info-circle"></i> Learn More
-                    </button>
-                </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Page Faults: ${faults}</span>
-                            <span>Hit Rate: ${hitRate.toFixed(1)}%</span>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-bar bg-success" style="width: ${hitRate}%">
-                                Hits ${hitRate.toFixed(1)}%
-                            </div>
-                            <div class="progress-bar bg-danger" style="width: ${missRate}%">
-                                Misses ${missRate.toFixed(1)}%
-                            </div>
-                        </div>
-                    </div>
-                    <div class="visualization-container position-relative">
-                        <img src="data:image/png;base64,${data.algorithm_visualizations[algo.toLowerCase()]}" 
-                             class="img-fluid" alt="${algo} visualization" data-algo="${algo}">
-                        <div class="visualization-controls">
-                            <button class="btn btn-sm btn-outline-primary zoom-in">
-                                <i class="bi bi-zoom-in"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary zoom-out">
-                                <i class="bi bi-zoom-out"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary fullscreen">
-                                <i class="bi bi-fullscreen"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary play-pause">
-                                <i class="bi bi-play-fill"></i>
-                            </button>
-                            <select class="form-select form-select-sm animation-speed">
-                                <option value="0.5">0.5x</option>
-                                <option value="1" selected>1x</option>
-                                <option value="2">2x</option>
-                            </select>
-                        </div>
-                        <div class="visualization-tooltip"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Add event listener for Learn More button
-        const learnMoreBtn = algoDiv.querySelector('.learn-more-btn');
-        learnMoreBtn.addEventListener('click', () => {
-            const algorithmName = learnMoreBtn.dataset.algorithm;
-            showAlgorithmInfo(algorithmName);
-        });
-
-        algoVisContainer.appendChild(algoDiv);
-
-        // Initialize visualization controls
-        initializeVisualizationControls(algoDiv, data, algo);
-    });
-    
-    // Update system resources
-    updateSystemResources(data.memory_stats);
 }
 
-function initializeVisualizationControls(container, data, algo) {
-    const img = container.querySelector('img');
-    const controls = container.querySelector('.visualization-controls');
-    const tooltip = container.querySelector('.visualization-tooltip');
-    const playPause = controls.querySelector('.play-pause');
-    const speedSelect = controls.querySelector('.animation-speed');
-    let isPlaying = false;
-    
-    // Add zoom functionality
-    const zoomIn = controls.querySelector('.zoom-in');
-    const zoomOut = controls.querySelector('.zoom-out');
-    let scale = 1;
-    
-    zoomIn.addEventListener('click', () => {
-        scale = Math.min(scale + 0.2, 2);
-        img.style.transform = `scale(${scale})`;
-    });
-    
-    zoomOut.addEventListener('click', () => {
-        scale = Math.max(scale - 0.2, 0.5);
-        img.style.transform = `scale(${scale})`;
-    });
+function updatePerformanceCharts(data) {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const plotlyTemplate = currentTheme === 'light' ? 'plotly' : 'plotly_dark';
+    const textColor = currentTheme === 'light' ? '#333333' : '#ffffff';
+    const gridColor = currentTheme === 'light' ? '#e5e5e5' : '#404040';
 
-    // Add fullscreen functionality
-    const fullscreenBtn = controls.querySelector('.fullscreen');
-    fullscreenBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-            img.requestFullscreen();
-        } else {
-            document.exitFullscreen();
+    // Common layout properties
+    const commonLayout = {
+        font: {
+            family: 'Inter, system-ui, -apple-system, sans-serif',
+            color: textColor
+        },
+        showlegend: false,
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        margin: {
+            l: 50,
+            r: 20,
+            t: 40,
+            b: 60
+        },
+        xaxis: {
+            tickangle: -45,
+            tickfont: {
+                size: 11,
+                color: textColor
+            },
+            gridcolor: gridColor,
+            linecolor: gridColor,
+            showgrid: true,
+            zeroline: false,
+            fixedrange: true
+        },
+        yaxis: {
+            gridcolor: gridColor,
+            linecolor: gridColor,
+            tickfont: {
+                size: 11,
+                color: textColor
+            },
+            title: {
+                text: 'Number of Page Faults',
+                font: {
+                    size: 12,
+                    color: textColor
+                },
+                standoff: 15
+            },
+            showgrid: true,
+            zeroline: false,
+            fixedrange: true,
+            rangemode: 'tozero',
+            dtick: 1
         }
+    };
+
+    // Update the data styling for Page Faults chart
+    const faultsData = [{
+        ...data.visualization.data[0],
+        textposition: 'outside',
+        textfont: {
+            size: 10,
+            color: textColor
+        },
+        marker: {
+            color: ['#0d6efd', '#198754', '#dc3545', '#ffc107', '#0dcaf0', '#6f42c1', '#fd7e14'],
+            line: {
+                color: currentTheme === 'light' ? '#ffffff' : '#2c2c2c',
+                width: 1
+            }
+        },
+        hovertemplate: '<b>%{x}</b><br>Page Faults: %{y}<br>Hit Rate: %{text}<extra></extra>',
+        text: Object.keys(data.hit_rates).map(algo => 
+            `${(data.hit_rates[algo] * 100).toFixed(1)}%`
+        )
+    }];
+
+    // Create the chart with responsive configuration
+    Plotly.newPlot('visualization', faultsData, commonLayout, {
+        displayModeBar: false,
+        responsive: true,
+        useResizeHandler: true
     });
+}
+
+function updateSystemResources(stats) {
+    // Update memory usage progress bar
+    const memoryBar = document.getElementById('memory-usage');
+    memoryBar.style.width = `${stats.usage}%`;
+    memoryBar.textContent = `${stats.usage.toFixed(1)}%`;
     
-    // Add animation controls
-    let animationInterval;
-    let currentStep = 0;
-    const totalSteps = data.memory_states[algo.toLowerCase()].length;
+    // Update CPU usage progress bar
+    const cpuBar = document.getElementById('cpu-usage');
+    cpuBar.style.width = `${stats.cpu_usage}%`;
+    cpuBar.textContent = `${stats.cpu_usage.toFixed(1)}%`;
     
-    playPause.addEventListener('click', () => {
-        isPlaying = !isPlaying;
-        playPause.innerHTML = isPlaying ? 
-            '<i class="bi bi-pause-fill"></i>' : 
-            '<i class="bi bi-play-fill"></i>';
-        
-        if (isPlaying) {
-            const speed = parseFloat(speedSelect.value);
-            animationInterval = setInterval(() => {
-                currentStep = (currentStep + 1) % totalSteps;
-                updateVisualizationStep(currentStep, algo, data);
-            }, 1000 / speed);
-        } else {
-            clearInterval(animationInterval);
-        }
-    });
-    
-    speedSelect.addEventListener('change', () => {
-        if (isPlaying) {
-            clearInterval(animationInterval);
-            const speed = parseFloat(speedSelect.value);
-            animationInterval = setInterval(() => {
-                currentStep = (currentStep + 1) % totalSteps;
-                updateVisualizationStep(currentStep, algo, data);
-            }, 1000 / speed);
-        }
-    });
-    
-    // Add tooltip functionality
-    img.addEventListener('mousemove', (e) => {
-        const rect = img.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        
-        tooltip.style.display = 'block';
-        tooltip.style.left = `${x + 10}px`;
-        tooltip.style.top = `${y + 10}px`;
-        
-        // Calculate time step and page number from position
-        const timeStep = Math.floor((x / rect.width) * totalSteps);
-        const state = data.memory_states[algo.toLowerCase()][timeStep] || [];
-        
-        tooltip.innerHTML = `
-            Time Step: ${timeStep}<br>
-            Pages in Memory: ${state.join(', ') || 'None'}<br>
-            Memory Usage: ${state.length} pages
-        `;
-    });
-    
-    img.addEventListener('mouseout', () => {
-        tooltip.style.display = 'none';
-    });
+    // Update memory stats
+    document.getElementById('rss-memory').textContent = `${stats.rss.toFixed(2)} MB`;
+    document.getElementById('virtual-memory').textContent = `${stats.vms.toFixed(2)} MB`;
 }
 
 function updateVisualizationStep(step, algo, data) {
-    const state = data.memory_states[algo.toLowerCase()][step];
+    const state = data.memory_states[algo][step];
     const tooltip = document.querySelector(`[data-algo="${algo}"]`).nextElementSibling;
     
     tooltip.innerHTML = `
@@ -418,19 +492,3 @@ function showAlgorithmInfo(algorithmName) {
     
     modal.show();
 }
-
-function updateSystemResources(stats) {
-    // Update memory usage progress bar
-    const memoryBar = document.getElementById('memory-usage');
-    memoryBar.style.width = `${stats.usage}%`;
-    memoryBar.textContent = `${stats.usage.toFixed(1)}%`;
-    
-    // Update CPU usage progress bar
-    const cpuBar = document.getElementById('cpu-usage');
-    cpuBar.style.width = `${stats.cpu_usage}%`;
-    cpuBar.textContent = `${stats.cpu_usage.toFixed(1)}%`;
-    
-    // Update memory stats
-    document.getElementById('rss-memory').textContent = `${stats.rss.toFixed(2)} MB`;
-    document.getElementById('virtual-memory').textContent = `${stats.vms.toFixed(2)} MB`;
-} 
