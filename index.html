@@ -7,8 +7,133 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="css/styles.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .navbar {
+            background-color: #4361ee;
+        }
+        
+        .bg-purple {
+            background-color: #7209b7;
+        }
+        
+        .simulation-container {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        
+        .frame-row {
+            display: flex;
+            margin-bottom: 5px;
+            animation: fadeIn 0.5s;
+        }
+        
+        .reference-number {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #4361ee;
+            color: white;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        
+        .frame-cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        
+        .frame-cell.fault {
+            background-color: rgba(239, 71, 111, 0.2);
+            border-color: rgba(239, 71, 111, 0.5);
+        }
+        
+        .frame-cell.hit {
+            background-color: rgba(46, 196, 182, 0.2);
+            border-color: rgba(46, 196, 182, 0.5);
+        }
+        
+        .metric-card {
+            padding: 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            height: 100%;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .metric-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #4361ee;
+        }
+        
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        
+        .comparison-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .efficiency-score {
+            font-weight: bold;
+            position: relative;
+        }
+        
+        .efficiency-high {
+            color: #198754;
+        }
+        
+        .efficiency-medium {
+            color: #fd7e14;
+        }
+        
+        .efficiency-low {
+            color: #dc3545;
+        }
+        
+        .score-breakdown {
+            display: none;
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            width: 280px;
+            z-index: 100;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+            left: 0;
+            top: 100%;
+        }
+        
+        .efficiency-score:hover .score-breakdown {
+            display: block;
+        }
+    </style>
 </head>
 <body class="bg-light">
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -194,7 +319,7 @@
 
     <footer class="footer mt-auto py-3">
         <div class="container text-center">
-            <span class="text-muted"> 2025 Page Replacement Simulator</span>
+            <span class="text-muted">© 2025 Page Replacement Simulator</span>
         </div>
     </footer>
 
